@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="light" data-accent="blue">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swap: CSV, XLSX &amp; JSON Converter</title>
+<link rel="canonical" href="https://crypticot.github.io/swap/">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%232554EB'/%3E%3Cpath d='M4 7h11M4 7l3-3M4 7l3 3M20 17H9M20 17l-3-3M20 17l-3 3' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Swap">
+<meta name="description" content="Swap converts files between CSV, XLSX and JSON right in your browser. Pick a format, convert, and download. Nothing is uploaded anywhere else.">
+<meta name="theme-color" content="#2554EB">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://crypticot.github.io/swap/">
+<meta property="og:title" content="Swap — CSV, XLSX & JSON Converter">
+<meta property="og:description" content="Drop in a CSV, XLSX or JSON file, pick a target format, and convert. Type detection, JSON flattening and multi-file zipping, all in your browser.">
+<meta property="og:image" content="https://crypticot.github.io/swap/swap-og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Swap: a CSV, XLSX and JSON converter that runs entirely in the browser">
+<meta property="og:site_name" content="Swap">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Swap — CSV, XLSX & JSON Converter">
+<meta name="twitter:description" content="Drop in a CSV, XLSX or JSON file, pick a target format, and convert. Type detection, JSON flattening and multi-file zipping, all in your browser.">
+<meta name="twitter:image" content="https://crypticot.github.io/swap/swap-og.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anek+Telugu:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --accent:#2554EB;
+    --radius-lg:18px;
+    --radius-md:12px;
+    --radius-sm:8px;
+    --good:#0E9F6E; --good-bg:#E6F8F0;
+    --warn:#B45309; --warn-bg:#FEF3E2;
+    --bad:#DC2626;  --bad-bg:#FDEAEA;
+    --csv:#0E9F6E;  --csv-bg:#E6F8F0;
+    --xlsx:#2563EB; --xlsx-bg:#EAF0FE;
+    --json:#B45309; --json-bg:#FEF3E2;
+  }
+  html[data-accent="blue"]  { --accent:#2554EB; }
+  html[data-accent="violet"]{ --accent:#7C3AED; }
+  html[data-accent="green"] { --accent:#0E9F6E; }
+  html[data-accent="amber"] { --accent:#D97706; }
+  html[data-accent="rose"]  { --accent:#E11D48; }
+  html[data-accent="teal"]  { --accent:#0D9488; }
+
+  html[data-mode="light"]{
+    --bg:#FAFAFD; --surface:#FFFFFF; --surface-2:#F3F4F9;
+    --ink:#14161F; --ink-soft:#62677A; --ink-faint:#9CA1B3; --line:#E7E8F1;
+    color-scheme:light;
+  }
+  html[data-mode="dark"]{
+    --bg:#0D0E13; --surface:#15161E; --surface-2:#1D1F29;
+    --ink:#EFEFF4; --ink-soft:#A2A6BA; --ink-faint:#666B80; --line:#272935;
+    color-scheme:dark;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Anek Telugu',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    min-height:100vh;
+    transition:background .2s ease,color .2s ease;
+  }
+  .mono{font-family:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;}
+
+  .page{
+    max-width:720px;
+    margin:0 auto;
+    padding:20px 20px 40px;
+    display:flex;
+    flex-direction:column;
+    gap:22px;
+  }
+
+  /* ---------- Topbar ---------- */
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding-top:4px;}
+  .brand{display:flex;align-items:center;gap:9px;}
+  .brand-mark{
+    width:32px;height:32px;border-radius:9px;background:var(--accent);
+    display:flex;align-items:center;justify-content:center;color:#fff;flex:none;
+    transition:background .2s ease;
+  }
+  .brand-mark svg{width:17px;height:17px;}
+  .brand-name{font-weight:800;font-size:18px;letter-spacing:-0.01em;}
+
+  .top-btn{
+    all:unset;display:flex;align-items:center;gap:7px;padding:8px 12px;border-radius:999px;
+    background:var(--surface-2);color:var(--ink-soft);font-size:12.5px;font-weight:600;cursor:pointer;
+  }
+  .top-btn:hover{color:var(--ink);}
+  .top-btn svg{width:15px;height:15px;}
+
+  /* ---------- Hero ---------- */
+  .hero{padding:6px 2px 0;}
+  .hero h1{margin:0 0 6px;font-size:27px;font-weight:800;letter-spacing:-0.02em;}
+  .hero p{margin:0;font-size:14px;color:var(--ink-soft);line-height:1.55;max-width:52ch;}
+
+  /* ---------- Card shell ---------- */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:20px;}
+
+  .target-row{display:flex;align-items:center;gap:8px;margin-bottom:14px;}
+  .target-row label{font-size:12.5px;color:var(--ink-soft);font-weight:600;}
+
+  .dropzone{
+    border:1.5px dashed var(--line);border-radius:var(--radius-md);background:var(--surface-2);
+    padding:30px 18px;display:flex;flex-direction:column;align-items:center;gap:9px;
+    cursor:pointer;transition:border-color .15s,background .15s;
+  }
+  .dropzone.drag{border-color:var(--accent);background:color-mix(in srgb, var(--accent) 8%, var(--surface));}
+  .dropzone svg{width:26px;height:26px;stroke:var(--accent);}
+  .dropzone strong{font-size:13.5px;font-weight:600;}
+  .dropzone span{font-size:12px;color:var(--ink-faint);}
+
+  .queue{margin-top:14px;display:flex;flex-direction:column;gap:8px;}
+  .empty-row{text-align:center;padding:18px 10px;color:var(--ink-faint);font-size:12.5px;}
+
+  .file-row{border:1px solid var(--line);border-radius:var(--radius-md);overflow:hidden;background:var(--surface);}
+  .file-row-top{display:flex;align-items:center;gap:10px;padding:10px 12px;}
+  .file-row-bottom{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;border-top:1px solid var(--line);background:var(--surface-2);}
+
+  .badge{
+    width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+    font-size:9px;font-weight:800;letter-spacing:.02em;flex:none;
+  }
+  .badge.csv{background:var(--csv-bg);color:var(--csv);}
+  .badge.xlsx{background:var(--xlsx-bg);color:var(--xlsx);}
+  .badge.json{background:var(--json-bg);color:var(--json);}
+
+  .file-meta{min-width:0;flex:1;}
+  .file-meta .name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .file-meta .sub{font-size:11px;color:var(--ink-faint);margin-top:1px;}
+
+  .status-tag{display:flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;white-space:nowrap;flex:none;}
+  .status-tag.ready{color:var(--ink-faint);}
+  .status-tag.busy{color:var(--warn);}
+  .status-tag.done{color:var(--good);}
+  .status-tag.error{color:var(--bad);}
+  .status-tag svg{width:13px;height:13px;}
+  .spin{animation:spin 0.8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .row-target select{
+    all:unset;font-size:12px;font-weight:600;color:var(--ink-soft);background:var(--surface);
+    border:1px solid var(--line);padding:6px 9px;border-radius:7px;cursor:pointer;
+  }
+
+  .row-actions{display:flex;gap:4px;flex:none;}
+  .icon-btn{
+    all:unset;width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;color:var(--ink-soft);
+  }
+  .icon-btn:hover{background:var(--surface);}
+  .icon-btn svg{width:14px;height:14px;}
+  .icon-btn.primary{background:var(--accent);color:#fff;}
+  .icon-btn.primary:hover{filter:brightness(1.08);}
+  .icon-btn.danger:hover{background:var(--bad-bg);color:var(--bad);}
+  .icon-btn[disabled]{opacity:.35;cursor:not-allowed;pointer-events:none;}
+
+  .preview-drawer{display:none;border-top:1px solid var(--line);padding:12px;background:var(--surface);}
+  .preview-drawer.open{display:block;}
+  .preview-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  @media (max-width:560px){.preview-grid{grid-template-columns:1fr;}}
+  .preview-col h5{margin:0 0 6px;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);font-weight:700;}
+  .preview-box{
+    background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px;
+    max-height:200px;overflow:auto;font-size:11.5px;
+  }
+  .preview-box.placeholder{display:flex;align-items:center;justify-content:center;color:var(--ink-faint);min-height:60px;text-align:center;}
+  .preview-box table{border-collapse:collapse;width:100%;}
+  .preview-box th,.preview-box td{
+    text-align:left;padding:5px 7px;border-bottom:1px solid var(--line);white-space:nowrap;
+    max-width:140px;overflow:hidden;text-overflow:ellipsis;
+  }
+  .preview-box th{color:var(--ink-soft);font-weight:600;position:sticky;top:0;background:var(--surface-2);}
+  .preview-note{margin-top:6px;font-size:10.5px;color:var(--ink-faint);}
+  .preview-box pre{margin:0;white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.55;}
+  .jk{color:#3B82F6;} .js{color:#22C55E;} .jn{color:#F59E0B;} .jb{color:#A78BFA;} .jerr{color:var(--bad);}
+
+  .queue-foot{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);gap:10px;flex-wrap:wrap;}
+  .queue-foot span{font-size:12px;color:var(--ink-soft);}
+  .btn{
+    all:unset;display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:999px;
+    font-size:12.5px;font-weight:600;cursor:pointer;
+  }
+  .btn.solid{background:var(--accent);color:#fff;}
+  .btn.solid:hover{filter:brightness(1.08);}
+  .btn.ghost{background:var(--surface-2);color:var(--ink-soft);}
+  .btn.ghost:hover{color:var(--ink);}
+  .btn svg{width:13px;height:13px;}
+  .btn[disabled]{opacity:.4;cursor:not-allowed;pointer-events:none;}
+
+  /* ---------- How it works (single, collapsible) ---------- */
+  details.how{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px 20px;}
+  details.how summary{cursor:pointer;font-size:13.5px;font-weight:600;list-style:none;display:flex;align-items:center;justify-content:space-between;}
+  details.how summary::-webkit-details-marker{display:none;}
+  details.how summary .chev{width:16px;height:16px;color:var(--ink-faint);transition:transform .15s ease;}
+  details.how[open] summary .chev{transform:rotate(180deg);}
+  .how-body{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
+  .how-body .row{font-size:12.5px;color:var(--ink-soft);line-height:1.55;}
+  .how-body .row b{color:var(--ink);}
+
+  /* ---------- Session stats ---------- */
+  .stats-inline{display:flex;gap:18px;justify-content:center;flex-wrap:wrap;padding:2px 0;}
+  .stat{display:flex;flex-direction:column;align-items:center;gap:2px;}
+  .stat b{font-size:18px;font-weight:800;}
+  .stat span{font-size:11px;color:var(--ink-faint);}
+
+  /* ---------- History ---------- */
+  .history-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .history-head h4{margin:0;font-size:13.5px;font-weight:700;}
+  .history-head button{all:unset;font-size:11.5px;color:var(--ink-faint);cursor:pointer;}
+  .history-head button:hover{color:var(--bad);}
+  .history-list{display:flex;flex-direction:column;}
+  .history-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);}
+  .history-row:last-child{border-bottom:none;}
+  .history-row .badge{width:28px;height:28px;font-size:8px;}
+  .history-row .name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .history-row .sub{font-size:10.5px;color:var(--ink-faint);}
+  .history-empty{font-size:12px;color:var(--ink-faint);padding:6px 0;}
+
+  /* ---------- Footer ---------- */
+  .footer{text-align:center;font-size:12px;color:var(--ink-faint);padding-top:4px;}
+  .footer a{color:var(--accent);font-weight:700;text-decoration:none;}
+  .footer a:hover{text-decoration:underline;}
+
+  /* ---------- Modal ---------- */
+  .modal-back{display:none;position:fixed;inset:0;background:rgba(10,11,18,.5);align-items:center;justify-content:center;z-index:50;padding:16px;}
+  .modal-back.open{display:flex;}
+  .modal{background:var(--surface);border-radius:var(--radius-lg);width:100%;max-width:380px;padding:22px;max-height:90vh;overflow:auto;}
+  .modal h3{margin:0 0 16px;font-size:15px;font-weight:800;}
+  .modal h4{margin:0 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-faint);font-weight:700;}
+  .modal-section{margin-bottom:18px;}
+  .mode-toggle{display:flex;background:var(--surface-2);border-radius:999px;padding:4px;gap:4px;}
+  .mode-toggle button{
+    all:unset;flex:1;text-align:center;padding:8px 0;border-radius:999px;font-size:12.5px;font-weight:600;
+    color:var(--ink-soft);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;
+  }
+  .mode-toggle button svg{width:14px;height:14px;}
+  .mode-toggle button.active{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12);}
+
+  .swatches{display:flex;gap:10px;}
+  .swatch{
+    width:30px;height:30px;border-radius:50%;cursor:pointer;border:2px solid transparent;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .swatch.active{border-color:var(--ink);}
+  .swatch svg{width:13px;height:13px;color:#fff;display:none;}
+  .swatch.active svg{display:block;}
+
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;}
+  .field select, .field input[type=text]{
+    all:unset;box-sizing:border-box;width:100%;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:8px;padding:9px 10px;font-size:13px;font-family:inherit;color:var(--ink);
+  }
+  .modal-actions{display:flex;justify-content:flex-end;margin-top:6px;}
+
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px;}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h11M4 7l3-3M4 7l3 3M20 17H9M20 17l-3-3M20 17l-3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="brand-name">Swap</div>
+    </div>
+    <button class="top-btn" id="settingsBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 0 1 0 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 0 1 0-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z"/>
+        <path d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+      </svg>
+      Settings
+    </button>
+  </div>
+
+  <div class="hero">
+    <h1>Convert CSV, XLSX and JSON</h1>
+    <p>Drop your files in, pick a format per file, and convert. Everything runs right here in your browser.</p>
+  </div>
+
+  <section class="card">
+    <div class="dropzone" id="dropzone" tabindex="0">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 16V6M12 6l-4 4M12 6l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 16.5V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <strong>Click or drag your files here</strong>
+      <span>Accepts .csv, .xlsx, .xls and .json</span>
+      <input type="file" id="fileInput" multiple accept=".csv,.xlsx,.xls,.json,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
+    </div>
+
+    <div class="queue" id="queue">
+      <div class="empty-row" id="queueEmpty">No files yet. Add some above to get started.</div>
+    </div>
+
+    <div class="queue-foot">
+      <span id="queueSummary">Total 0 files</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn ghost" id="convertAllBtn" disabled>
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 12a8 8 0 0 1 14.9-4M20 12a8 8 0 0 1-14.9 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M18 4v5h-5M6 20v-5h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Convert all
+        </button>
+        <button class="btn solid" id="downloadAllBtn" disabled>
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 15V4M12 15l-4-4M12 15l4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Download all
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <details class="how">
+    <summary>How conversions work
+      <svg class="chev" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </summary>
+    <div class="how-body">
+      <div class="row"><b>CSV —</b> types are detected automatically; the delimiter can be changed in Settings.</div>
+      <div class="row"><b>XLSX —</b> only the first sheet is read on the way in, and output workbooks get one sheet.</div>
+      <div class="row"><b>JSON —</b> an array of objects becomes rows directly, a single object becomes one row, and nested fields flatten into <code class="mono">parent.child</code> columns. Converting JSON to JSON just reformats the original structure instead, without flattening.</div>
+    </div>
+  </details>
+
+  <div class="stats-inline">
+    <div class="stat"><b id="statQueued">0</b><span>queued</span></div>
+    <div class="stat"><b id="statDone">0</b><span>converted</span></div>
+    <div class="stat"><b id="statError">0</b><span>failed</span></div>
+  </div>
+
+  <section class="card">
+    <div class="history-head">
+      <h4>History</h4>
+      <button id="clearHistoryBtn">Clear</button>
+    </div>
+    <div class="history-list" id="historyList">
+      <div class="history-empty">Conversions you complete will show up here.</div>
+    </div>
+  </section>
+
+  <div class="footer">Created by <a href="https://github.com/crypticot" target="_blank" rel="noopener">COTworks</a></div>
+
+</div>
+
+<!-- Settings modal -->
+<div class="modal-back" id="settingsModal">
+  <div class="modal">
+    <h3>Settings</h3>
+
+    <div class="modal-section">
+      <h4>Appearance</h4>
+      <div class="mode-toggle" id="modeToggle">
+        <button data-mode="light" class="active">
+          <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          Light
+        </button>
+        <button data-mode="dark">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+          Dark
+        </button>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <h4>Accent color</h4>
+      <div class="swatches" id="swatches">
+        <div class="swatch active" data-accent="blue" style="background:#2554EB;"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="swatch" data-accent="violet" style="background:#7C3AED;"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="swatch" data-accent="green" style="background:#0E9F6E;"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="swatch" data-accent="amber" style="background:#D97706;"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="swatch" data-accent="rose" style="background:#E11D48;"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="swatch" data-accent="teal" style="background:#0D9488;"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <h4>Conversion options</h4>
+      <div class="field">
+        <label>CSV delimiter</label>
+        <select id="setDelimiter">
+          <option value=",">Comma ( , )</option>
+          <option value=";">Semicolon ( ; )</option>
+          <option value="	">Tab</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>JSON indentation</label>
+        <select id="setIndent">
+          <option value="2" selected>2 spaces</option>
+          <option value="4">4 spaces</option>
+          <option value="0">Minified</option>
+        </select>
+      </div>
+      <div class="field" style="margin-bottom:0;">
+        <label>XLSX sheet name (output)</label>
+        <input type="text" id="setSheetName" value="Sheet1">
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn ghost" id="settingsCloseBtn">Done</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- state ---------------- */
+  const files = [];
+  const settings = { delimiter: ',', indent: 2, sheetName: 'Sheet1' };
+  let historyEntries = [];
+  let seq = 0;
+
+  const byId = (id) => document.getElementById(id);
+  const fmt = (ext) => ext.toUpperCase();
+
+  /* ---------------- theme + accent (persisted) ---------------- */
+  function loadAppearance(){
+    let mode = 'light', accent = 'blue';
+    try {
+      mode = localStorage.getItem('swap_mode') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      accent = localStorage.getItem('swap_accent') || 'blue';
+    } catch(e){}
+    document.documentElement.setAttribute('data-mode', mode);
+    document.documentElement.setAttribute('data-accent', accent);
+    document.querySelectorAll('#modeToggle button').forEach(b => b.classList.toggle('active', b.getAttribute('data-mode') === mode));
+    document.querySelectorAll('#swatches .swatch').forEach(s => s.classList.toggle('active', s.getAttribute('data-accent') === accent));
+  }
+
+  function setMode(mode){
+    document.documentElement.setAttribute('data-mode', mode);
+    document.querySelectorAll('#modeToggle button').forEach(b => b.classList.toggle('active', b.getAttribute('data-mode') === mode));
+    try { localStorage.setItem('swap_mode', mode); } catch(e){}
+  }
+
+  function setAccent(accent){
+    document.documentElement.setAttribute('data-accent', accent);
+    document.querySelectorAll('#swatches .swatch').forEach(s => s.classList.toggle('active', s.getAttribute('data-accent') === accent));
+    try { localStorage.setItem('swap_accent', accent); } catch(e){}
+  }
+
+  document.querySelectorAll('#modeToggle button').forEach(b => b.addEventListener('click', () => setMode(b.getAttribute('data-mode'))));
+  document.querySelectorAll('#swatches .swatch').forEach(s => s.addEventListener('click', () => setAccent(s.getAttribute('data-accent'))));
+
+  loadAppearance();
+
+  /* ---------------- history (localStorage log, metadata only) ---------------- */
+  try {
+    const saved = JSON.parse(localStorage.getItem('swap_history') || '[]');
+    if (Array.isArray(saved)) historyEntries = saved;
+  } catch (e) { historyEntries = []; }
+
+  function saveHistory(){
+    try { localStorage.setItem('swap_history', JSON.stringify(historyEntries.slice(0,30))); } catch(e){}
+  }
+
+  function pushHistory(entry){
+    historyEntries.unshift(entry);
+    historyEntries = historyEntries.slice(0,30);
+    saveHistory();
+    renderHistory();
+  }
+
+  function renderHistory(){
+    const el = byId('historyList');
+    if (!historyEntries.length){
+      el.innerHTML = '<div class="history-empty">Conversions you complete will show up here.</div>';
+      return;
+    }
+    el.innerHTML = historyEntries.map(h => `
+      <div class="history-row">
+        <div class="badge ${h.ext}">${fmt(h.ext)}</div>
+        <div style="min-width:0;flex:1;">
+          <div class="name">${escapeHtml(h.name)}</div>
+          <div class="sub">${humanSize(h.size)} · ${h.when}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  byId('clearHistoryBtn').addEventListener('click', () => {
+    historyEntries = [];
+    saveHistory();
+    renderHistory();
+  });
+
+  /* ---------------- helpers ---------------- */
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  function humanSize(bytes){
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+    return (bytes/(1024*1024)).toFixed(1) + ' MB';
+  }
+
+  function extOf(name){
+    const m = /\.([a-z0-9]+)$/i.exec(name);
+    return m ? m[1].toLowerCase() : '';
+  }
+
+  function badgeExt(ext){ return ext === 'xls' ? 'xlsx' : ext; }
+  function baseName(name){ return name.replace(/\.[^.]+$/, ''); }
+
+  function defaultTargetFor(ext){
+    if (ext === 'csv') return 'xlsx';
+    if (ext === 'xlsx' || ext === 'xls') return 'csv';
+    return 'csv'; // json -> csv by default
+  }
+
+  /* ---------------- JSON flatten / normalize ---------------- */
+  function flattenObject(obj, prefix){
+    prefix = prefix || '';
+    const out = {};
+    Object.keys(obj || {}).forEach(key => {
+      const val = obj[key];
+      const newKey = prefix ? (prefix + '.' + key) : key;
+      if (val !== null && typeof val === 'object' && !Array.isArray(val)){
+        Object.assign(out, flattenObject(val, newKey));
+      } else if (Array.isArray(val)){
+        const allPrimitive = val.every(v => v === null || typeof v !== 'object');
+        if (allPrimitive){
+          out[newKey] = val.join('; ');
+        } else {
+          val.forEach((item, i) => {
+            if (item !== null && typeof item === 'object'){
+              Object.assign(out, flattenObject(item, newKey + '[' + i + ']'));
+            } else {
+              out[newKey + '[' + i + ']'] = item;
+            }
+          });
+        }
+      } else {
+        out[newKey] = val;
+      }
+    });
+    return out;
+  }
+
+  function normalizeJsonToRows(data){
+    if (Array.isArray(data)){
+      if (!data.length) return [];
+      return data.map(item => {
+        if (item !== null && typeof item === 'object' && !Array.isArray(item)) return flattenObject(item);
+        if (Array.isArray(item)) return flattenObject({ value: item });
+        return { value: item };
+      });
+    }
+    if (data !== null && typeof data === 'object') return [flattenObject(data)];
+    return [{ value: data }];
+  }
+
+  /* ---------------- parsing ---------------- */
+  function parseCsvText(text){
+    const res = Papa.parse(text, { header: true, dynamicTyping: true, skipEmptyLines: true });
+    if (res.errors && res.errors.length){
+      const fatal = res.errors.find(e => e.type !== 'FieldMismatch');
+      if (fatal) throw new Error(fatal.message || 'Could not parse CSV.');
+    }
+    return res.data;
+  }
+
+  function parseXlsxBuffer(buffer){
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const sheetName = wb.SheetNames[0];
+    if (!sheetName) throw new Error('Workbook has no sheets.');
+    const sheet = wb.Sheets[sheetName];
+    return XLSX.utils.sheet_to_json(sheet, { defval: '' });
+  }
+
+  function parseJsonText(text){
+    let data;
+    try { data = JSON.parse(text); }
+    catch(e){ throw new Error('Invalid JSON: ' + e.message); }
+    return { raw: data, rows: normalizeJsonToRows(data) };
+  }
+
+  /* ---------------- output generation ---------------- */
+  function rowsToCsvBlob(rows){
+    const csv = Papa.unparse(rows, { delimiter: settings.delimiter });
+    return new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  }
+
+  function rowsToXlsxBlob(rows){
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, (settings.sheetName || 'Sheet1').slice(0,31) || 'Sheet1');
+    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+
+  function rowsToJsonBlob(rows){
+    const json = JSON.stringify(rows, null, settings.indent);
+    return new Blob([json], { type: 'application/json' });
+  }
+
+  function rawToJsonBlob(raw){
+    const json = JSON.stringify(raw, null, settings.indent);
+    return new Blob([json], { type: 'application/json' });
+  }
+
+  /* ---------------- preview rendering ---------------- */
+  function tableHtml(rows){
+    if (!rows || !rows.length) return '<div class="preview-box placeholder">No rows to show.</div>';
+    const allCols = Object.keys(rows[0] || {});
+    const cols = allCols.slice(0, 8);
+    const shownRows = rows.slice(0, 8);
+    let html = '<div class="preview-box"><table><thead><tr>' +
+      cols.map(c => '<th>' + escapeHtml(c) + '</th>').join('') + '</tr></thead><tbody>';
+    shownRows.forEach(r => {
+      html += '<tr>' + cols.map(c => '<td>' + escapeHtml(r[c] === undefined ? '' : r[c]) + '</td>').join('') + '</tr>';
+    });
+    html += '</tbody></table></div>';
+    const notes = [];
+    if (rows.length > shownRows.length) notes.push((rows.length - shownRows.length) + ' more row(s)');
+    if (allCols.length > cols.length) notes.push((allCols.length - cols.length) + ' more column(s)');
+    if (notes.length) html += '<div class="preview-note">+ ' + notes.join(', ') + '</div>';
+    return html;
+  }
+
+  function highlightJson(str){
+    const esc = escapeHtml(str);
+    return esc.replace(/(&quot;.*?&quot;)(\s*:)/g, '<span class="jk">$1</span>$2')
+               .replace(/:(\s*)(&quot;.*?&quot;)/g, ':$1<span class="js">$2</span>')
+               .replace(/:(\s*)(-?\d+\.?\d*)/g, ':$1<span class="jn">$2</span>')
+               .replace(/\b(true|false|null)\b/g, '<span class="jb">$1</span>');
+  }
+
+  function jsonPreviewHtml(raw){
+    if (raw === null || raw === undefined) return '<div class="preview-box placeholder">Nothing to preview.</div>';
+    const text = JSON.stringify(raw, null, 2);
+    const capped = text.length > 4000 ? text.slice(0,4000) + '\n…' : text;
+    return '<div class="preview-box"><pre>' + highlightJson(capped) + '</pre></div>';
+  }
+
+  function errorPreviewHtml(message){
+    return '<div class="preview-box"><pre class="jerr">' + escapeHtml(message) + '</pre></div>';
+  }
+
+  function inputPreviewHtml(file){
+    if (file.status === 'error') return errorPreviewHtml(file.error);
+    if (file.ext === 'json') return jsonPreviewHtml(file.rawJson);
+    return tableHtml(file.parsedRows);
+  }
+
+  function outputPreviewHtml(file){
+    if (file.status === 'error') return errorPreviewHtml(file.error);
+    if (file.status !== 'done') return '<div class="preview-box placeholder">Convert this file to see the output preview.</div>';
+    if (file.outputExt === 'json') return jsonPreviewHtml(file.outputRaw);
+    return tableHtml(file.outputRows);
+  }
+
+  /* ---------------- rendering the queue ---------------- */
+  function renderQueue(){
+    const q = byId('queue');
+    if (!files.length){
+      q.innerHTML = '<div class="empty-row" id="queueEmpty">No files yet. Add some above to get started.</div>';
+    } else {
+      q.innerHTML = files.map(rowHtml).join('');
+    }
+    updateFooter();
+    updateStats();
+    bindRowEvents();
+  }
+
+  function statusHtml(file){
+    if (file.status === 'ready') return '<span class="status-tag ready">Ready</span>';
+    if (file.status === 'busy') return '<span class="status-tag busy"><svg class="spin" viewBox="0 0 24 24" fill="none"><path d="M12 3a9 9 0 1 0 9 9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>Converting</span>';
+    if (file.status === 'done') return '<span class="status-tag done"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Converted</span>';
+    return '<span class="status-tag error"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 8v5M12 16h.01" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>Error</span>';
+  }
+
+  function rowHtml(file){
+    const b = badgeExt(file.ext);
+    const downloadEnabled = file.status === 'done';
+    return `
+      <div class="file-row" data-id="${file.id}">
+        <div class="file-row-top">
+          <div class="badge ${b}">${fmt(b)}</div>
+          <div class="file-meta">
+            <div class="name">${escapeHtml(file.name)}</div>
+            <div class="sub">${humanSize(file.size)}</div>
+          </div>
+          ${statusHtml(file)}
+        </div>
+        <div class="file-row-bottom">
+          <div class="row-target">
+            <select data-role="target" ${file.status==='busy' ? 'disabled' : ''}>
+              <option value="csv" ${file.targetFormat==='csv'?'selected':''}>→ CSV</option>
+              <option value="xlsx" ${file.targetFormat==='xlsx'?'selected':''}>→ XLSX</option>
+              <option value="json" ${file.targetFormat==='json'?'selected':''}>→ JSON</option>
+            </select>
+          </div>
+          <div class="row-actions">
+            <button class="icon-btn" data-role="preview" title="Preview">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/></svg>
+            </button>
+            <button class="icon-btn primary" data-role="convert" title="Convert" ${file.status==='busy' ? 'disabled' : ''}>
+              <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="icon-btn" data-role="download" title="Download" ${downloadEnabled ? '' : 'disabled'}>
+              <svg viewBox="0 0 24 24" fill="none"><path d="M12 15V4M12 15l-4-4M12 15l4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <button class="icon-btn danger" data-role="remove" title="Remove">
+              <svg viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m2 0-1 13a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="preview-drawer ${file.previewOpen ? 'open' : ''}" data-role="drawer">
+          <div class="preview-grid">
+            <div class="preview-col"><h5>Input preview</h5>${inputPreviewHtml(file)}</div>
+            <div class="preview-col"><h5>Output preview</h5>${outputPreviewHtml(file)}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function updateFooter(){
+    byId('queueSummary').textContent = 'Total ' + files.length + ' file' + (files.length===1?'':'s');
+    const anyPending = files.some(f => f.status === 'ready' || f.status === 'error');
+    const anyDone = files.some(f => f.status === 'done');
+    byId('convertAllBtn').disabled = !anyPending || !files.length;
+    byId('downloadAllBtn').disabled = !anyDone;
+  }
+
+  function updateStats(){
+    byId('statQueued').textContent = files.length;
+    byId('statDone').textContent = files.filter(f=>f.status==='done').length;
+    byId('statError').textContent = files.filter(f=>f.status==='error').length;
+  }
+
+  function bindRowEvents(){
+    document.querySelectorAll('.file-row').forEach(rowEl => {
+      const id = rowEl.getAttribute('data-id');
+      const file = files.find(f => f.id === id);
+      if (!file) return;
+
+      const targetSel = rowEl.querySelector('[data-role="target"]');
+      if (targetSel) targetSel.addEventListener('change', e => { file.targetFormat = e.target.value; });
+
+      const previewBtn = rowEl.querySelector('[data-role="preview"]');
+      if (previewBtn) previewBtn.addEventListener('click', () => { file.previewOpen = !file.previewOpen; renderQueue(); });
+
+      const convertBtn = rowEl.querySelector('[data-role="convert"]');
+      if (convertBtn) convertBtn.addEventListener('click', () => convertFile(file.id));
+
+      const downloadBtn = rowEl.querySelector('[data-role="download"]');
+      if (downloadBtn) downloadBtn.addEventListener('click', () => downloadFile(file.id));
+
+      const removeBtn = rowEl.querySelector('[data-role="remove"]');
+      if (removeBtn) removeBtn.addEventListener('click', () => {
+        const idx = files.findIndex(f => f.id === id);
+        if (idx > -1) files.splice(idx,1);
+        renderQueue();
+      });
+    });
+  }
+
+  /* ---------------- file intake ---------------- */
+  function addFiles(fileList){
+    Array.from(fileList).forEach(f => {
+      const ext = extOf(f.name);
+      if (!['csv','xlsx','xls','json'].includes(ext)) return; // silently skip unsupported types
+
+      const entry = {
+        id: 'f' + (++seq),
+        name: f.name,
+        ext: ext,
+        size: f.size,
+        status: 'ready',
+        error: null,
+        parsedRows: null,
+        rawJson: null,
+        targetFormat: defaultTargetFor(ext),
+        outputBlob: null,
+        outputRows: null,
+        outputRaw: null,
+        outputName: null,
+        outputExt: null,
+        previewOpen: false
+      };
+      files.push(entry);
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          if (ext === 'csv'){
+            entry.parsedRows = parseCsvText(reader.result);
+          } else if (ext === 'json'){
+            const parsed = parseJsonText(reader.result);
+            entry.rawJson = parsed.raw;
+            entry.parsedRows = parsed.rows;
+          } else {
+            entry.parsedRows = parseXlsxBuffer(reader.result);
+          }
+        } catch (err){
+          entry.status = 'error';
+          entry.error = err.message || String(err);
+        }
+        renderQueue();
+      };
+      reader.onerror = () => {
+        entry.status = 'error';
+        entry.error = 'Could not read file.';
+        renderQueue();
+      };
+      if (ext === 'xlsx' || ext === 'xls') reader.readAsArrayBuffer(f);
+      else reader.readAsText(f);
+    });
+    renderQueue();
+  }
+
+  /* ---------------- conversion ---------------- */
+  function convertFile(id){
+    const file = files.find(f => f.id === id);
+    if (!file || file.status === 'busy') return;
+    const notParsed = file.ext === 'json' ? file.rawJson === null : file.parsedRows === null;
+    if (notParsed) return; // still loading, or a previous parse failed
+
+    file.status = 'busy';
+    file.error = null;
+    renderQueue();
+
+    setTimeout(() => {
+      try {
+        const target = file.targetFormat;
+        let blob, outExt, outRows = null, outRaw = null;
+
+        if (file.ext === 'json' && target === 'json'){
+          blob = rawToJsonBlob(file.rawJson);
+          outRaw = file.rawJson;
+          outExt = 'json';
+        } else if (target === 'csv'){
+          blob = rowsToCsvBlob(file.parsedRows);
+          outRows = file.parsedRows;
+          outExt = 'csv';
+        } else if (target === 'xlsx'){
+          blob = rowsToXlsxBlob(file.parsedRows);
+          outRows = file.parsedRows;
+          outExt = 'xlsx';
+        } else {
+          blob = rowsToJsonBlob(file.parsedRows);
+          outRows = file.parsedRows;
+          outRaw = file.parsedRows;
+          outExt = 'json';
+        }
+
+        file.outputBlob = blob;
+        file.outputRows = outRows;
+        file.outputRaw = outRaw;
+        file.outputExt = outExt;
+        file.outputName = baseName(file.name) + '.' + outExt;
+        file.status = 'done';
+        file.previewOpen = true;
+
+        pushHistory({ name: file.outputName, size: blob.size, ext: badgeExt(outExt), when: new Date().toLocaleTimeString() });
+      } catch (err){
+        file.status = 'error';
+        file.error = err.message || String(err);
+      }
+      renderQueue();
+    }, 120);
+  }
+
+  function convertAll(){
+    files.filter(f => f.status === 'ready' || f.status === 'error').forEach(f => convertFile(f.id));
+  }
+
+  function downloadFile(id){
+    const file = files.find(f => f.id === id);
+    if (!file || !file.outputBlob) return;
+    const url = URL.createObjectURL(file.outputBlob);
+    const a = document.createElement('a');
+    a.href = url; a.download = file.outputName;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function downloadAll(){
+    const done = files.filter(f => f.status === 'done');
+    if (!done.length) return;
+    if (done.length === 1){ downloadFile(done[0].id); return; }
+    const zip = new JSZip();
+    for (const f of done){
+      zip.file(f.outputName, f.outputBlob);
+    }
+    const content = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(content);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'converted-files.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  /* ---------------- wiring ---------------- */
+  const dropzone = byId('dropzone');
+  const fileInput = byId('fileInput');
+
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+  fileInput.addEventListener('change', e => { addFiles(e.target.files); fileInput.value = ''; });
+
+  ['dragenter','dragover'].forEach(evt => dropzone.addEventListener(evt, e => {
+    e.preventDefault(); dropzone.classList.add('drag');
+  }));
+  ['dragleave','drop'].forEach(evt => dropzone.addEventListener(evt, e => {
+    e.preventDefault(); dropzone.classList.remove('drag');
+  }));
+  dropzone.addEventListener('drop', e => {
+    if (e.dataTransfer && e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+  });
+
+  byId('convertAllBtn').addEventListener('click', convertAll);
+  byId('downloadAllBtn').addEventListener('click', downloadAll);
+
+  /* settings modal */
+  const modal = byId('settingsModal');
+  byId('settingsBtn').addEventListener('click', () => modal.classList.add('open'));
+  byId('settingsCloseBtn').addEventListener('click', () => modal.classList.remove('open'));
+  modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
+
+  byId('setDelimiter').addEventListener('change', e => settings.delimiter = e.target.value);
+  byId('setIndent').addEventListener('change', e => settings.indent = parseInt(e.target.value, 10));
+  byId('setSheetName').addEventListener('input', e => settings.sheetName = e.target.value || 'Sheet1');
+
+  renderHistory();
+  renderQueue();
+})();
+</script>
+</body>
+</html>
