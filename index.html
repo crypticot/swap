@@ -269,6 +269,41 @@
   ::-webkit-scrollbar{width:8px;height:8px;}
   ::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px;}
 </style>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "Swap",
+  "alternateName": "Swap: CSV, XLSX & JSON Converter",
+  "url": "https://crypticot.github.io/swap/",
+  "description": "Swap converts files between CSV, XLSX and JSON right in your browser. Pick a format, convert, and download. Nothing is uploaded anywhere else.",
+  "image": "https://crypticot.github.io/swap/swap-og.png",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Any",
+  "browserRequirements": "Requires JavaScript",
+  "inLanguage": "en",
+  "isAccessibleForFree": true,
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "featureList": [
+    "Convert between CSV, XLSX and JSON",
+    "Automatic type detection for CSV files",
+    "JSON flattening into columns",
+    "Batch conversion with ZIP download",
+    "Runs entirely in the browser, no upload"
+  ],
+  "author": {
+    "@type": "Person",
+    "name": "Chidubem Ojukwu",
+    "url": "https://crypticot.github.io/cotworks-portfolio/"
+  }
+}
+</script>
+
 </head>
 <body>
 
@@ -591,8 +626,9 @@
 
   /* ---------------- output generation ---------------- */
   function rowsToCsvBlob(rows){
-    const csv = Papa.unparse(rows, { delimiter: settings.delimiter });
-    return new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const columns = [...new Set(rows.flatMap(r => Object.keys(r)))];
+  const csv = Papa.unparse(rows, { columns: columns, delimiter: settings.delimiter });
+  return new Blob([csv], { type: 'text/csv;charset=utf-8' });
   }
 
   function rowsToXlsxBlob(rows){
